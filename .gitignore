@@ -1,0 +1,14 @@
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+backend/whiteboard.db
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.env.local
+node_modules/
+build/
+.env
+*.pyc
+__pycache__/

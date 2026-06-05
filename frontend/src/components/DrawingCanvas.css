@@ -1,0 +1,278 @@
+.canvas-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ── TOOLBAR ── */
+.toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border-bottom: 1.5px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.toolbar::-webkit-scrollbar { display: none; }
+
+.toolbar-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 28px;
+  background: var(--border);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.tool-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
+.tool-btn.active { background: var(--primary); border-color: var(--primary); box-shadow: 0 2px 8px rgba(91,79,232,0.3); }
+.tool-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Colors ── */
+.color-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.color-swatch {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  flex-shrink: 0;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.active {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary);
+}
+
+.color-picker-wrap {
+  position: relative;
+  width: 22px; height: 22px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.color-picker-icon { font-size: 18px; line-height: 1; }
+.color-picker-wrap input[type="color"] {
+  position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer;
+}
+
+/* ── Brush ── */
+.brush-section { gap: 8px; flex-shrink: 0; }
+.brush-label { font-size: 10px; font-weight: 800; color: var(--ink3); letter-spacing: 0.05em; white-space: nowrap; }
+.brush-slider { width: 80px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
+.brush-dot { border-radius: 50%; flex-shrink: 0; transition: all 0.15s; max-width: 28px; max-height: 28px; }
+
+/* ── CANVAS AREA ── */
+.canvas-area {
+  flex: 1; overflow: hidden; display: flex; align-items: stretch;
+  position: relative; background: #FAFAFA;
+  background-image:
+    linear-gradient(rgba(91,79,232,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91,79,232,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.draw-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.cursor-pen    { cursor: crosshair; }
+.cursor-eraser { cursor: cell; }
+.cursor-fill   { cursor: copy; }
+
+/* ══════════════════════════════
+   MOBILE  ≤ 600px
+══════════════════════════════ */
+@media (max-width: 600px) {
+  .toolbar { padding: 7px 10px; gap: 3px; }
+  .toolbar-sep { height: 22px; margin: 0 3px; }
+  .tool-btn { width: 32px; height: 32px; font-size: 15px; border-radius: 7px; }
+  .color-swatch { width: 18px; height: 18px; }
+  .color-picker-wrap { width: 18px; height: 18px; }
+  .color-picker-icon { font-size: 15px; }
+  .brush-slider { width: 55px; }
+  .brush-label { font-size: 9px; }
+  .brush-dot { max-width: 20px; max-height: 20px; }
+}
+
+@media (max-width: 400px) {
+  .brush-slider { width: 44px; }
+  .tool-btn { width: 30px; height: 30px; }
+  .color-swatch { width: 16px; height: 16px; }
+}
+/* ── TRACE BAR ── */
+.trace-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: var(--primary-light);
+  border-bottom: 1.5px solid #D4D0FF;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.trace-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--primary-dark);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.trace-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.trace-scroll::-webkit-scrollbar { display: none; }
+
+.trace-chip {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1.5px solid #C4BFFF;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.trace-chip:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.trace-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(91,79,232,0.35);
+}
+
+.trace-close {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1.5px solid #FFAAAA;
+  border-radius: 999px;
+  background: #FFF0F0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #E53E3E;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.trace-close:hover { background: #FFE0E0; }
+
+/* ── SVG TRACE OVERLAY ── */
+.trace-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;   /* clicks pass through to canvas */
+  z-index: 2;
+}
+
+/* Animated dash march on the dotted lines */
+.trace-overlay path[stroke-dasharray] {
+  animation: dash-march 3s linear infinite;
+}
+@keyframes dash-march {
+  to { stroke-dashoffset: -34; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DRAWING CANVAS — MOBILE & TABLET RESPONSIVE
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (≤900px) ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .toolbar        { padding: 8px 10px; gap: 5px; flex-wrap: nowrap; overflow-x: auto; }
+  .toolbar-sep    { height: 24px; margin: 0 4px; }
+  .tool-btn       { width: 34px; height: 34px; font-size: 16px; }
+  .color-swatch   { width: 20px; height: 20px; }
+  .color-picker-wrap { width: 20px; height: 20px; }
+  .brush-slider   { width: 70px; }
+  .brush-label    { font-size: 10px; }
+
+  .trace-bar      { padding: 6px 10px; gap: 6px; }
+  .trace-label    { font-size: 11px; }
+  .trace-chip     { padding: 3px 10px; font-size: 11px; }
+  .trace-close    { padding: 3px 10px; font-size: 11px; }
+}
+
+/* ── Phone (≤600px) ───────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .toolbar        { padding: 6px 8px; gap: 3px; }
+  .toolbar-sep    { height: 20px; margin: 0 3px; }
+  .tool-btn       { width: 32px; height: 32px; font-size: 15px; border-radius: 7px; }
+  .color-swatch   { width: 18px; height: 18px; }
+  .color-picker-wrap { width: 18px; height: 18px; }
+  .color-picker-icon { font-size: 15px; }
+  .brush-slider   { width: 55px; }
+  .brush-label    { font-size: 9px; }
+  .brush-dot      { max-width: 20px; max-height: 20px; }
+
+  .trace-bar      { padding: 5px 8px; gap: 5px; }
+  .trace-label    { font-size: 10px; }
+  .trace-chip     { padding: 3px 8px; font-size: 10px; }
+  .trace-close    { padding: 3px 8px; font-size: 10px; }
+
+  /* Make canvas area fill remaining height properly */
+  .canvas-area    { min-height: 240px; }
+  .canvas-wrapper { border-radius: 12px; }
+}
+
+/* ── Small phone (≤400px) ────────────────────────────────────── */
+@media (max-width: 400px) {
+  .tool-btn       { width: 28px; height: 28px; font-size: 14px; border-radius: 6px; }
+  .color-swatch   { width: 16px; height: 16px; }
+  .brush-slider   { width: 44px; }
+  .toolbar-sep    { margin: 0 2px; }
+  .trace-chip     { padding: 2px 6px; font-size: 9px; }
+}
+
+/* ── Landscape phone ──────────────────────────────────────────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .toolbar        { padding: 4px 8px; }
+  .tool-btn       { width: 28px; height: 28px; }
+  .trace-bar      { padding: 3px 8px; }
+  .canvas-area    { min-height: 180px; }
+}

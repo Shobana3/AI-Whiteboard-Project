@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #F5F3EE;
+  --surface: #FFFFFF;
+  --surface2: #FAF9F6;
+  --border: #E8E4DC;
+  --border2: #D8D3C8;
+
+  --ink: #1A1714;
+  --ink2: #4A4540;
+  --ink3: #8A827A;
+
+  --primary: #5B4FE8;
+  --primary-light: #EEF0FF;
+  --primary-dark: #3D34C4;
+
+  --accent: #FF6B35;
+  --accent-light: #FFF0EB;
+
+  --green: #2ECC8B;
+  --green-light: #E8FFF5;
+
+  --yellow: #F5C842;
+  --yellow-light: #FFFBEA;
+
+  --pink: #FF4D8B;
+  --pink-light: #FFF0F5;
+
+  --canvas-bg: #FEFEFE;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { cursor: pointer; font-family: inherit; }
+input { font-family: inherit; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 999px; }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.fade-up { animation: fadeUp 0.35s ease both; }
+.pop-in  { animation: popIn  0.3s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* ── Mobile / Touch globals ── */
+html {
+  /* Prevent text size inflation on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Prevent overscroll bounce on iOS */
+  overscroll-behavior: none;
+  /* Safe area support for notched phones */
+  padding-env: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Improve tap targets on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  button, input, select, textarea {
+    min-height: 40px;
+  }
+
+  /* Prevent double-tap zoom on buttons */
+  button { touch-action: manipulation; }
+
+  /* Bigger scrollbar on touch screens — hide it, rely on native */
+  ::-webkit-scrollbar { width: 0; height: 0; }
+}
+
+/* Prevent canvas zoom on double-tap iOS */
+canvas { touch-action: none; }
