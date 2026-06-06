@@ -163,6 +163,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* handles mobile browser chrome collapsing */
   background: var(--bg);
   overflow: hidden;
 }
@@ -403,8 +404,10 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}/* ════════════════════════════════════════════════════════════════
-   MOBILE & TABLET RESPONSIVE — appended to WhiteboardPage.css
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MOBILE & TABLET RESPONSIVE
    Breakpoints:
      tablet landscape : max-width 1024px
      tablet portrait  : max-width 900px
@@ -413,6 +416,9 @@
      small phone      : max-width 400px
    ════════════════════════════════════════════════════════════════ */
 
+/* ── Mobile nav — hidden by default on desktop ─────────────────── */
+.mob-nav { display: none; }
+
 /* ── TABLET LANDSCAPE (≤1024px) ───────────────────────────────── */
 @media (max-width: 1024px) {
   .side-panel { width: 300px; }
@@ -420,30 +426,48 @@
   .stat-pill { padding: 4px 8px; }
 }
 
-/* ── TABLET PORTRAIT (≤900px) ─────────────────────────────────── */
+/* ── TABLET PORTRAIT & MOBILE (≤900px) ───────────────────────── */
 @media (max-width: 900px) {
-  .app-shell { padding-bottom: 68px; }
-
-  .main-layout {
-    flex-direction: column;
-    overflow-y: auto;
-    height: auto;
-    flex: 1;
+  /* Shell fills full dynamic viewport — accounts for mobile browser chrome */
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+    padding-bottom: 68px; /* space for fixed bottom nav */
   }
 
+  /* Main layout: flex column, fills remaining height, no scrolling */
+  .main-layout {
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden; /* ← KEY FIX: was overflow-y: auto which caused half-height */
+    position: relative;
+  }
+
+  /* Canvas section fills full height when visible */
+  .canvas-section {
+    flex: 1;
+    height: 100%;
+    padding: 10px;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  /* Side panel fills full height when visible — no fixed pixel height */
   .side-panel {
     width: 100%;
+    flex: 1;              /* ← KEY FIX: was height: 420px */
+    height: 100%;         /* ← ensures it truly fills the space */
     border-left: none;
     border-top: 1.5px solid var(--border);
-    height: 420px;
     flex-shrink: 0;
   }
 
-  .canvas-section { padding: 10px; gap: 8px; }
-
   .header-stats { display: none; }
 
-  /* show mobile nav */
+  /* mob-hide: hides whichever panel is not active */
+  .mob-hide { display: none !important; }
+
+  /* Fixed bottom nav */
   .mob-nav {
     display: flex;
     position: fixed;
@@ -454,8 +478,6 @@
     z-index: 100;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
   }
-
-  .mob-hide { display: none !important; }
 
   /* Welcome card tablet */
   .welcome-card { padding: 36px 36px; max-width: 520px; }
@@ -470,14 +492,14 @@
 
   .new-session-btn { padding: 6px 10px; font-size: 12px; }
 
-  .canvas-card { border-radius: 14px; }
+  .canvas-card    { border-radius: 14px; }
   .canvas-controls { gap: 7px; }
 
   .hint-input  { padding: 10px 13px; font-size: 13px; }
   .analyze-btn { padding: 11px 16px; font-size: 14px; }
   .clear-btn   { padding: 11px 14px; font-size: 13px; }
 
-  .side-panel  { height: 380px; }
+  /* No fixed height — inherits full-height from ≤900px rule */
   .side-tab    { padding: 11px 8px; font-size: 12px; }
 }
 
@@ -500,8 +522,7 @@
   .analyze-btn    { padding: 11px 14px; font-size: 13px; border-radius: 10px; gap: 6px; }
   .clear-btn      { padding: 11px 12px; font-size: 13px; border-radius: 10px; }
 
-  /* Side panel */
-  .side-panel     { height: 360px; }
+  /* Side panel — no fixed height, fills available space via ≤900px rule */
   .side-tab       { padding: 10px 6px; font-size: 11px; gap: 4px; }
   .tab-badge      { padding: 1px 5px; font-size: 10px; }
 
@@ -547,5 +568,4 @@
   .mob-nav        { padding: 4px 0; }
   .mob-nav-icon   { font-size: 16px; }
   .mob-nav-label  { font-size: 9px; }
-  .side-panel     { height: 300px; }
 }
