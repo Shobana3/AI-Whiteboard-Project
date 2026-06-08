@@ -130,16 +130,33 @@
   .tool-btn { width: 30px; height: 30px; }
   .color-swatch { width: 16px; height: 16px; }
 }
-/* ── TRACE BAR ── */
+
+/* ══════════════════════════════════════════════════
+   TRACE BAR — two-level: categories + shape chips
+══════════════════════════════════════════════════ */
 .trace-bar {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  flex-direction: column;
   background: var(--primary-light);
   border-bottom: 1.5px solid #D4D0FF;
   flex-shrink: 0;
   overflow: hidden;
+}
+
+/* ── Row 1: category buttons ── */
+.trace-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 4px;
+  position: relative;
+}
+
+/* fade hint on the right so users know they can scroll */
+.trace-cat-row .trace-scroll,
+.trace-shapes-row .trace-scroll {
+  -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+          mask-image: linear-gradient(to right, black 80%, transparent 100%);
 }
 
 .trace-label {
@@ -150,6 +167,7 @@
   flex-shrink: 0;
 }
 
+/* ── Shared scroll container ── */
 .trace-scroll {
   display: flex;
   gap: 6px;
@@ -157,9 +175,54 @@
   flex: 1;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px; /* prevent chip shadow clipping */
 }
 .trace-scroll::-webkit-scrollbar { display: none; }
 
+/* ── Category button ── */
+.trace-cat-btn {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border: 1.5px solid #C4BFFF;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.trace-cat-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+.trace-cat-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(91,79,232,0.3);
+}
+/* dot indicator when a shape in this category is active but category is closed */
+.trace-cat-btn.has-active:not(.active) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.trace-cat-arrow {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+/* ── Row 2: shape chips ── */
+.trace-shapes-row {
+  padding: 3px 14px 7px;
+  position: relative;
+}
+
+/* ── Individual shape chip ── */
 .trace-chip {
   flex-shrink: 0;
   padding: 4px 12px;
@@ -185,20 +248,23 @@
   box-shadow: 0 2px 8px rgba(91,79,232,0.35);
 }
 
+/* ── Close / remove guide button ── */
 .trace-close {
   flex-shrink: 0;
-  padding: 4px 12px;
+  width: 28px; height: 28px;
   border: 1.5px solid #FFAAAA;
-  border-radius: 999px;
+  border-radius: 50%;
   background: #FFF0F0;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
   color: #E53E3E;
   cursor: pointer;
   transition: all 0.15s;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.trace-close:hover { background: #FFE0E0; }
+.trace-close:hover { background: #FFE0E0; transform: scale(1.1); }
 
 /* ── SVG TRACE OVERLAY ── */
 .trace-overlay {
@@ -206,11 +272,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;   /* clicks pass through to canvas */
+  pointer-events: none;
   z-index: 2;
 }
 
-/* Animated dash march on the dotted lines */
+/* Animated dash march */
 .trace-overlay path[stroke-dasharray] {
   animation: dash-march 3s linear infinite;
 }
@@ -232,10 +298,11 @@
   .brush-slider   { width: 70px; }
   .brush-label    { font-size: 10px; }
 
-  .trace-bar      { padding: 6px 10px; gap: 6px; }
-  .trace-label    { font-size: 11px; }
+  .trace-cat-row  { padding: 5px 10px 3px; gap: 6px; }
+  .trace-shapes-row { padding: 2px 10px 6px; }
+  .trace-cat-btn  { padding: 4px 9px; font-size: 11px; }
   .trace-chip     { padding: 3px 10px; font-size: 11px; }
-  .trace-close    { padding: 3px 10px; font-size: 11px; }
+  .trace-close    { width: 26px; height: 26px; font-size: 12px; }
 }
 
 /* ── Phone (≤600px) ───────────────────────────────────────────── */
@@ -250,12 +317,13 @@
   .brush-label    { font-size: 9px; }
   .brush-dot      { max-width: 20px; max-height: 20px; }
 
-  .trace-bar      { padding: 5px 8px; gap: 5px; }
+  .trace-cat-row  { padding: 5px 8px 3px; gap: 5px; }
+  .trace-shapes-row { padding: 2px 8px 5px; }
+  .trace-cat-btn  { padding: 3px 8px; font-size: 10px; border-radius: 7px; }
   .trace-label    { font-size: 10px; }
   .trace-chip     { padding: 3px 8px; font-size: 10px; }
-  .trace-close    { padding: 3px 8px; font-size: 10px; }
+  .trace-close    { width: 24px; height: 24px; font-size: 11px; }
 
-  /* Make canvas area fill remaining height properly */
   .canvas-area    { min-height: 240px; }
   .canvas-wrapper { border-radius: 12px; }
 }
@@ -266,6 +334,7 @@
   .color-swatch   { width: 16px; height: 16px; }
   .brush-slider   { width: 44px; }
   .toolbar-sep    { margin: 0 2px; }
+  .trace-cat-btn  { padding: 2px 6px; font-size: 9px; }
   .trace-chip     { padding: 2px 6px; font-size: 9px; }
 }
 
@@ -273,6 +342,7 @@
 @media (max-height: 500px) and (orientation: landscape) {
   .toolbar        { padding: 4px 8px; }
   .tool-btn       { width: 28px; height: 28px; }
-  .trace-bar      { padding: 3px 8px; }
+  .trace-cat-row  { padding: 3px 8px 2px; }
+  .trace-shapes-row { padding: 2px 8px 4px; }
   .canvas-area    { min-height: 180px; }
 }
