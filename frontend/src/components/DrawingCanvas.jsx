@@ -256,11 +256,14 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
   const [traceShape,   setTraceShape]   = useState(null);
   const [openCategory, setOpenCategory] = useState(null);
 
+  const hasDrawingRef = useRef(false); // tracks if user has actually drawn anything
+
   useImperativeHandle(ref, () => ({
     getCanvasData:  () => canvasRef.current?.toDataURL('image/png'),
     clearCanvas:    () => clearCanvas(),
     getCanvas:      () => canvasRef.current,
     getTraceShape:  () => traceShape ? TRACE_SHAPES.find(s => s.id === traceShape)?.label || null : null,
+    isCanvasBlank:  () => !hasDrawingRef.current,
   }));
 
   useEffect(() => {
@@ -303,6 +306,7 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
     const ctx = canvas.getContext('2d');
     if (tool === 'fill') {
       floodFill(ctx, Math.round(pos.x), Math.round(pos.y), color);
+      hasDrawingRef.current = true;  // ← fill also counts as drawing
       saveToHistory();
       onDrawingChange?.();
     }
@@ -317,8 +321,9 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
     ctx.lineJoin = 'round';
     ctx.lineCap  = 'round';
     if (tool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      // Paint white — matches the canvas background, no transparent checkerboard
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = '#FFFFFF';
       ctx.lineWidth   = brushSize * 3;
     } else {
       ctx.globalCompositeOperation = 'source-over';
@@ -330,6 +335,7 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
     lastPos.current = pos;
+    hasDrawingRef.current = true;  // ← mark canvas as no longer blank
     onDrawingChange?.();
   };
 
@@ -343,6 +349,7 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    hasDrawingRef.current = false;  // ← reset blank state
     saveToHistory();
     onDrawingChange?.();
   };
@@ -351,6 +358,7 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
     if (historyIndex <= 0) return;
     const newIndex = historyIndex - 1;
     setHistoryIndex(newIndex);
+    if (newIndex === 0) hasDrawingRef.current = false; // ← back to blank
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const img = new Image();

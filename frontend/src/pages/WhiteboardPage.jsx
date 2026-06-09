@@ -10,6 +10,7 @@ import './WhiteboardPage.css';
 
 export default function WhiteboardPage() {
   const canvasRef   = useRef(null);
+
   // Reset mobile layout when resizing to desktop
   useEffect(() => {
     const onResize = () => {
@@ -18,6 +19,7 @@ export default function WhiteboardPage() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
   const [session,      setSession]      = useState(null);
   const [messages,     setMessages]     = useState([]);
   const [prediction,   setPrediction]   = useState(null);
@@ -30,7 +32,6 @@ export default function WhiteboardPage() {
   const [childName,    setChildName]    = useState('');
   const [childAge,     setChildAge]     = useState(7);
   const [hasDrawing,   setHasDrawing]   = useState(false);
-  // Mobile: 'canvas' | 'panel'
   const [mobileView,   setMobileView]   = useState('canvas');
 
   const startSession = async () => {
@@ -65,26 +66,48 @@ export default function WhiteboardPage() {
 
   const handleAnalyze = async () => {
     if (!session?.id || predLoading) return;
-    const canvasData = canvasRef.current?.getCanvasData();
-    const traceHint  = canvasRef.current?.getTraceShape(); // e.g. "Cat", "Apple"
-    // Combine user text with trace hint — trace hint takes priority if set
+
+    const canvasData    = canvasRef.current?.getCanvasData();
+    const traceHint     = canvasRef.current?.getTraceShape();
+    const isBlank       = canvasRef.current?.isCanvasBlank?.() ?? true;
     const effectiveText = traceHint
       ? traceHint + (userText.trim() ? ` — ${userText.trim()}` : '')
       : userText;
-    if (!canvasData && !effectiveText.trim()) {
-      alert('Please draw something or type a description first!');
+
+    // ── Block if nothing to analyse ─────────────────────────────────────────
+    // Use BOTH hasDrawing state AND isCanvasBlank as double guard
+    // This ensures mobile (where refs may lag) is also caught
+    const nothingDrawn = isBlank && !hasDrawing;
+    const noText       = !effectiveText.trim();
+
+    if (nothingDrawn && noText) {
+      alert('✏️ Draw something first! Sparky needs a drawing to analyse.');
       return;
     }
+
+    // If canvas is blank but user typed a description → text-only analysis, fine
+    // Don't send a blank canvas image to the API — waste of tokens
+    const sendCanvas = (!isBlank && hasDrawing) ? canvasData : null;
+
+    // Extra safety: if sendCanvas is null AND no text, block (catches edge cases)
+    if (!sendCanvas && noText) {
+      alert('✏️ Draw something or describe what you want to draw!');
+      return;
+    }
+
     setPredLoading(true);
     setActiveTab('prediction');
     setMobileView('panel');
+
     try {
-      if (canvasData) await saveDrawing({ session_id: session.id, canvas_data: canvasData });
+      if (sendCanvas) {
+        await saveDrawing({ session_id: session.id, canvas_data: sendCanvas });
+      }
       const res = await analyzeDrawing({
         session_id: session.id,
-        canvas_data: canvasData,
+        canvas_data: sendCanvas,
         user_text: effectiveText,
-        input_type: canvasData && effectiveText ? 'both' : canvasData ? 'drawing' : 'text',
+        input_type: sendCanvas && effectiveText ? 'both' : sendCanvas ? 'drawing' : 'text',
         child_age: session.age || childAge,
       });
       if (res.success) {
@@ -97,9 +120,14 @@ export default function WhiteboardPage() {
           message_type: 'prediction',
         }]);
         refreshStats();
-      } else alert('Oops! Sparky had trouble. Please try again.');
-    } catch { alert('Oops! Sparky had trouble. Please try again.'); }
-    finally { setPredLoading(false); }
+      } else {
+        alert('Oops! Sparky had trouble. Please try again.');
+      }
+    } catch {
+      alert('Oops! Sparky had trouble. Please try again.');
+    } finally {
+      setPredLoading(false);
+    }
   };
 
   // Detect "draw a X" / "draw X" / "how to draw X" requests
@@ -126,7 +154,6 @@ export default function WhiteboardPage() {
     }]);
     setChatLoading(true);
 
-    // Check if user wants to draw something — reply with steps instead of emojis
     const drawSubject = extractDrawSubject(text);
     if (drawSubject) {
       try {
@@ -153,7 +180,11 @@ export default function WhiteboardPage() {
     }
 
     try {
-      const res = await sendChatMessage({ session_id: session.id, message: text, child_age: session.age || childAge });
+      const res = await sendChatMessage({
+        session_id: session.id,
+        message: text,
+        child_age: session.age || childAge,
+      });
       if (res.success) {
         setMessages(prev => [...prev, {
           id: res.assistant_message_id || Date.now().toString(),
@@ -164,9 +195,12 @@ export default function WhiteboardPage() {
     } catch {
       setMessages(prev => [...prev, {
         id: 'err-' + Date.now(), role: 'assistant',
-        content: "Oops! I had a little trouble. Try again!", created_at: new Date().toISOString(),
+        content: "Oops! I had a little trouble. Try again!",
+        created_at: new Date().toISOString(),
       }]);
-    } finally { setChatLoading(false); }
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   const handleClear = () => {
@@ -174,12 +208,14 @@ export default function WhiteboardPage() {
     setHasDrawing(false);
     setPrediction(null);
     setUserText('');
+    setMobileView('canvas');
   };
 
   const handleNewSession = () => {
     setSession(null); setMessages([]); setPrediction(null);
     setUserText(''); setStats({ drawings: 0, predictions: 0, chat_messages: 0 });
     setChildName(''); setChildAge(7); setShowWelcome(true); setMobileView('canvas');
+    setHasDrawing(false);
     canvasRef.current?.clearCanvas();
   };
 
@@ -249,7 +285,7 @@ export default function WhiteboardPage() {
       {/* ── BODY ── */}
       <div className="main-layout">
 
-        {/* Canvas section — hidden on mobile when panel is active */}
+        {/* Canvas section */}
         <div className={`canvas-section${mobileView === 'panel' ? ' mob-hide' : ''}`}>
           <div className="canvas-card">
             <DrawingCanvas ref={canvasRef}
@@ -262,20 +298,24 @@ export default function WhiteboardPage() {
               onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
             <div className="ctrl-row">
               <button className="analyze-btn" onClick={handleAnalyze} disabled={predLoading}>
-                {predLoading ? <><span className="spinner" /> Analyzing...</> : <><span>🔍</span> Analyze with AI</>}
+                {predLoading
+                  ? <><span className="spinner" /> Analyzing...</>
+                  : <><span>🔍</span> Analyze with AI</>}
               </button>
               <button className="clear-btn" onClick={handleClear}>🗑️ Clear</button>
             </div>
           </div>
         </div>
 
-        {/* Side panel — hidden on mobile when canvas is active */}
+        {/* Side panel */}
         <div className={`side-panel${mobileView === 'canvas' ? ' mob-hide' : ''}`}>
           <div className="side-tabs">
-            <button className={`side-tab${activeTab==='prediction'?' active':''}`} onClick={() => setActiveTab('prediction')}>
+            <button className={`side-tab${activeTab==='prediction'?' active':''}`}
+              onClick={() => setActiveTab('prediction')}>
               🤖 Prediction
             </button>
-            <button className={`side-tab${activeTab==='chat'?' active':''}`} onClick={() => setActiveTab('chat')}>
+            <button className={`side-tab${activeTab==='chat'?' active':''}`}
+              onClick={() => setActiveTab('chat')}>
               💬 Chat{messages.length > 0 && <span className="tab-badge">{messages.length}</span>}
             </button>
           </div>
@@ -286,19 +326,22 @@ export default function WhiteboardPage() {
         </div>
       </div>
 
-      {/* ── MOBILE BOTTOM NAV (only shows on small screens) ── */}
+      {/* ── MOBILE BOTTOM NAV ── */}
       <nav className="mob-nav">
-        <button className={`mob-nav-btn${mobileView==='canvas'?' mob-active':''}`} onClick={() => setMobileView('canvas')}>
+        <button className={`mob-nav-btn${mobileView==='canvas'?' mob-active':''}`}
+          onClick={() => setMobileView('canvas')}>
           <span className="mob-nav-icon">✏️</span>
           <span className="mob-nav-label">Draw</span>
         </button>
 
-        <button className="mob-nav-btn mob-nav-center" onClick={handleAnalyze} disabled={predLoading}>
+        <button className="mob-nav-btn mob-nav-center"
+          onClick={handleAnalyze} disabled={predLoading}>
           <span className="mob-nav-icon">{predLoading ? '⏳' : '🔍'}</span>
           <span className="mob-nav-label">{predLoading ? 'Thinking…' : 'Analyze'}</span>
         </button>
 
-        <button className={`mob-nav-btn${mobileView==='panel'?' mob-active':''}`} onClick={() => setMobileView('panel')}>
+        <button className={`mob-nav-btn${mobileView==='panel'?' mob-active':''}`}
+          onClick={() => setMobileView('panel')}>
           <span className="mob-nav-icon">🤖</span>
           <span className="mob-nav-label">
             Sparky
