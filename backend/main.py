@@ -1,11 +1,3 @@
-"""
-main.py — fixed version:
-1. Single FastAPI app instance (was defined twice — killed all routes)
-2. lifespan handler replaces deprecated @app.on_event('startup')
-3. init_db() is now called on startup
-4. async routes use asyncio.to_thread for blocking Groq calls
-5. Global error handler so server never crashes
-"""
 import os
 import json
 import uuid
@@ -26,15 +18,12 @@ from ml_service import analyze_drawing, chat_with_ai, generate_drawing_guidance,
 load_dotenv()
 
 
-# ── Lifespan: runs init_db on startup, nothing extra on shutdown ───────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()                        # creates tables if they don't exist
-    yield                            # server runs here
-    # (add shutdown cleanup here if needed)
+    init_db()
+    yield
 
 
-# ── Single app instance — defined ONCE with lifespan ──────────────────────────
 app = FastAPI(title='AI Whiteboard API', version='2.0.0', lifespan=lifespan)
 
 app.add_middleware(
@@ -46,7 +35,6 @@ app.add_middleware(
 )
 
 
-# ── Global error handler — server never crashes on unhandled error ─────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     print(f'Unhandled error on {request.url}: {exc}')
@@ -73,16 +61,19 @@ class PredictRequest(BaseModel):
     user_text: Optional[str] = ''
     input_type: Optional[str] = 'drawing'
     child_age: Optional[int] = 6
+    language: Optional[str] = 'en-US'          # ← NEW
 
 class ChatRequest(BaseModel):
     session_id: str
     message: str
     child_age: Optional[int] = 6
+    language: Optional[str] = 'en-US'          # ← NEW
 
 class GuidanceRequest(BaseModel):
     object_name: str
     child_age: Optional[int] = 6
     session_id: Optional[str] = None
+    language: Optional[str] = 'en-US'          # ← NEW
 
 class DotToDotRequest(BaseModel):
     object_name: str
@@ -157,7 +148,8 @@ async def predict(data: PredictRequest):
             analyze_drawing,
             data.canvas_data,
             data.user_text or '',
-            data.child_age or 6
+            data.child_age or 6,
+            data.language or 'en-US'            # ← pass language
         )
         prediction_id = str(uuid.uuid4())
         db_run(
@@ -193,7 +185,8 @@ async def chat(data: ChatRequest):
         response = await asyncio.to_thread(
             chat_with_ai,
             messages,
-            data.child_age or 6
+            data.child_age or 6,
+            data.language or 'en-US'            # ← pass language
         )
         resp_id = str(uuid.uuid4())
         db_run(
@@ -213,7 +206,8 @@ async def guidance(data: GuidanceRequest):
         result = await asyncio.to_thread(
             generate_drawing_guidance,
             data.object_name,
-            data.child_age or 6
+            data.child_age or 6,
+            data.language or 'en-US'            # ← pass language
         )
         return {'success': True, 'guidance': result}
     except Exception as e:
@@ -265,7 +259,6 @@ def get_predictions(session_id: str):
     return {'success': True, 'predictions': preds}
 
 
-# ── Entry point ────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host='0.0.0.0', port=8000)

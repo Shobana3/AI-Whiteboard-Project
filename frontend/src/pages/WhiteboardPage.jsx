@@ -33,6 +33,7 @@ export default function WhiteboardPage() {
   const [childAge,     setChildAge]     = useState(7);
   const [hasDrawing,   setHasDrawing]   = useState(false);
   const [mobileView,   setMobileView]   = useState('canvas');
+  const [language,     setLanguage]     = useState('en-US');  // ← NEW: tracks selected language
 
   const startSession = async () => {
     try {
@@ -109,6 +110,7 @@ export default function WhiteboardPage() {
         user_text: effectiveText,
         input_type: sendCanvas && effectiveText ? 'both' : sendCanvas ? 'drawing' : 'text',
         child_age: session.age || childAge,
+        language,                              // ← pass language
       });
       if (res.success) {
         setPrediction({ result: res.result, id: res.prediction_id });
@@ -161,6 +163,7 @@ export default function WhiteboardPage() {
           object_name: drawSubject,
           child_age: session.age || childAge,
           session_id: session.id,
+          language,                            // ← pass language
         });
         if (res.success && res.guidance) {
           const g = res.guidance;
@@ -184,6 +187,7 @@ export default function WhiteboardPage() {
         session_id: session.id,
         message: text,
         child_age: session.age || childAge,
+        language,                              // ← pass language
       });
       if (res.success) {
         setMessages(prev => [...prev, {
@@ -321,7 +325,7 @@ export default function WhiteboardPage() {
           </div>
           <div className="side-body">
             {activeTab === 'prediction' && <PredictionPanel prediction={prediction} loading={predLoading} />}
-            {activeTab === 'chat'       && <ChatHistory messages={messages} onSendMessage={handleChatMessage} loading={chatLoading} sessionName={session?.child_name} />}
+            {activeTab === 'chat'       && <ChatHistory messages={messages} onSendMessage={handleChatMessage} loading={chatLoading} sessionName={session?.child_name} onLanguageChange={setLanguage} />}
           </div>
         </div>
       </div>
