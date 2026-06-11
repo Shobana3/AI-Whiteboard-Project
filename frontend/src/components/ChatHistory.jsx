@@ -146,9 +146,11 @@ export default function ChatHistory({ messages, onSendMessage, loading, sessionN
   const [voiceError,  setVoiceError]  = useState('');
   const [micLang,     setMicLang]     = useState(detectLanguage);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [dropdownPos,    setDropdownPos]    = useState({ top: 80, right: 12 });
   const bottomRef    = useRef(null);
   const recognizerRef = useRef(null);
   const langPickerRef = useRef(null);
+  const langBtnRef    = useRef(null);
 
   // Close lang picker when clicking outside
   useEffect(() => {
@@ -262,7 +264,17 @@ export default function ChatHistory({ messages, onSendMessage, loading, sessionN
         <div className="lang-picker-wrap" ref={langPickerRef}>
           <button
             className="lang-trigger-btn"
-            onClick={() => setShowLangPicker(p => !p)}
+            ref={langBtnRef}
+            onClick={() => {
+              if (!showLangPicker && langBtnRef.current) {
+                const rect = langBtnRef.current.getBoundingClientRect();
+                setDropdownPos({
+                  top:   rect.bottom + 6,
+                  right: window.innerWidth - rect.right,
+                });
+              }
+              setShowLangPicker(p => !p);
+            }}
             title={`Language: ${currentLang.name}`}
           >
             <span className="lang-flag">{currentLang.flag}</span>
@@ -272,7 +284,10 @@ export default function ChatHistory({ messages, onSendMessage, loading, sessionN
 
           {/* Dropdown */}
           {showLangPicker && (
-            <div className="lang-dropdown">
+            <div
+              className="lang-dropdown"
+              style={{ top: dropdownPos.top, right: dropdownPos.right }}
+            >
               <div className="lang-dropdown-title">🌐 Choose Language</div>
               <div className="lang-grid">
                 {LANGUAGES.map(l => (

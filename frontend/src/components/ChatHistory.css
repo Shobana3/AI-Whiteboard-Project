@@ -63,17 +63,17 @@
 .lang-code   { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
 .lang-arrow  { font-size: 8px; opacity: 0.8; }
 
-/* Dropdown panel */
+/* Dropdown panel — fixed so it escapes any overflow:hidden parent */
 .lang-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
+  top: 80px;   /* just below the header bar */
+  right: 12px;
   width: 260px;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-  z-index: 200;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  z-index: 9999;   /* above everything */
   overflow: hidden;
   animation: fadeUp 0.2s ease both;
 }
@@ -84,14 +84,16 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink3);
+  border-bottom: 1px solid var(--border);
 }
 .lang-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  padding: 4px 8px 10px;
-  max-height: 240px;
+  padding: 8px;
+  max-height: 260px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .lang-option {
   display: flex;
@@ -353,15 +355,10 @@
   .lang-trigger-btn { padding: 4px 7px; gap: 3px; }
   .lang-flag        { font-size: 13px; }
   .lang-code        { font-size: 10px; }
-  /* dropdown opens upward on mobile so it doesn't go off screen */
-  .lang-dropdown    {
-    top: auto; bottom: calc(100% + 8px);
-    right: 0; width: 220px;
-  }
-  .lang-grid        { grid-template-columns: repeat(3, 1fr); }
+  /* on small screens show less text in each option */
+  .lang-option-name { display: none; }
   .lang-option      { padding: 6px 3px; }
   .lang-option-flag { font-size: 16px; }
-  .lang-option-name { display: none; } /* hide name on small screens, show flag+code only */
 
   .messages-scroll  { padding: 10px; gap: 7px; }
   .msg-bubble       { max-width: 88%; padding: 8px 11px; border-radius: 14px; }
