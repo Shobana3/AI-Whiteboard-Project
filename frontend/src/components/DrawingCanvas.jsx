@@ -242,166 +242,314 @@ const TRACE_CATEGORIES = [
 // Flat list for lookup by id
 const TRACE_SHAPES = TRACE_CATEGORIES.flatMap(c => c.shapes);
 
-const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
-  const canvasRef      = useRef(null);
-  const lastPos        = useRef(null);
-  const catScrollRef   = useRef(null);   // wheel-scroll for category row
-  const shapesScrollRef = useRef(null);  // wheel-scroll for shapes row
+const DrawingCanvas = forwardRef(({ onDrawingChange, refImage, onRefImageClose }, ref) => {
+  const canvasRef       = useRef(null);   // visible canvas
+  const bgCanvasRef     = useRef(null);   // background fills layer
+  const lastPos         = useRef(null);
+  const currentStroke   = useRef([]);     // points of the stroke being drawn right now
+  const catScrollRef    = useRef(null);
+  const shapesScrollRef = useRef(null);
+
   const [isDrawing,    setIsDrawing]    = useState(false);
   const [tool,         setTool]         = useState('pen');
   const [color,        setColor]        = useState('#1A1714');
   const [brushSize,    setBrushSize]    = useState(4);
-  const [history,      setHistory]      = useState([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [strokes,      setStrokes]      = useState([]); // all drawn strokes [{points, color, size}]
   const [traceShape,   setTraceShape]   = useState(null);
   const [openCategory, setOpenCategory] = useState(null);
 
-  const hasDrawingRef = useRef(false); // tracks if user has actually drawn anything
+  const hasDrawingRef   = useRef(false);
+  const historyRef      = useRef([]);
+  const historyIndexRef = useRef(-1);
+  const strokesRef      = useRef([]);   // mirror of strokes state for use inside callbacks
 
+  // keep strokesRef in sync with strokes state
+  useEffect(() => { strokesRef.current = strokes; }, [strokes]);
+
+  // ── save current state to unified history ──────────────────────────────────
+  const saveHistory = useCallback((currentStrokes) => {
+    const bg = bgCanvasRef.current;
+    if (!bg) return;
+    const entry = {
+      bgSnapshot:  bg.toDataURL(),
+      strokeCount: currentStrokes.length,   // how many pen strokes exist at this point
+    };
+    const idx = historyIndexRef.current;
+    historyRef.current = historyRef.current.slice(0, idx + 1);
+    historyRef.current.push(entry);
+    if (historyRef.current.length > 30) historyRef.current.shift();
+    historyIndexRef.current = historyRef.current.length - 1;
+  }, []);
+
+  // expose methods to parent ──────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
-    getCanvasData:  () => canvasRef.current?.toDataURL('image/png'),
-    clearCanvas:    () => clearCanvas(),
-    getCanvas:      () => canvasRef.current,
-    getTraceShape:  () => traceShape ? TRACE_SHAPES.find(s => s.id === traceShape)?.label || null : null,
-    isCanvasBlank:  () => !hasDrawingRef.current,
+    getCanvasData: () => {
+      const draw = canvasRef.current;
+      const bg   = bgCanvasRef.current;
+      if (!draw) return null;
+      const merged = document.createElement('canvas');
+      merged.width  = draw.width;
+      merged.height = draw.height;
+      const ctx = merged.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, merged.width, merged.height);
+      if (bg) ctx.drawImage(bg, 0, 0);
+      ctx.drawImage(draw, 0, 0);
+      return merged.toDataURL('image/png');
+    },
+    clearCanvas:   () => clearCanvas(),
+    getCanvas:     () => canvasRef.current,
+    getTraceShape: () => traceShape ? TRACE_SHAPES.find(s => s.id === traceShape)?.label || null : null,
+    isCanvasBlank: () => !hasDrawingRef.current,
   }));
 
+  // ── init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
+    const bg = bgCanvasRef.current;
+    if (!bg) return;
+    const ctx = bg.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, bg.width, bg.height);
+    // save initial blank state as history entry 0
+    historyRef.current = [{ bgSnapshot: bg.toDataURL(), strokeCount: 0 }];
+    historyIndexRef.current = 0;
+  }, []);
+
+  // ── redraw all strokes onto the draw canvas ────────────────────────────────
+  const redrawStrokes = useCallback((strokeList) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const data = canvas.toDataURL();
-    setHistory([data]);
-    setHistoryIndex(0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokeList.forEach(stroke => {
+      if (stroke.points.length < 2) return;
+      ctx.beginPath();
+      ctx.lineJoin    = 'round';
+      ctx.lineCap     = 'round';
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth   = stroke.size;
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      stroke.points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.stroke();
+    });
   }, []);
 
-  const saveToHistory = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const data = canvas.toDataURL();
-    setHistory(prev => {
-      const h = prev.slice(0, historyIndex + 1);
-      h.push(data);
-      return h.slice(-30);
-    });
-    setHistoryIndex(prev => Math.min(prev + 1, 29));
-  }, [historyIndex]);
+  // ── restore bgCanvas from a base64 snapshot ────────────────────────────────
+  const restoreBg = useCallback((snapshot) => {
+    const bg = bgCanvasRef.current;
+    if (!bg) return;
+    const img = new Image();
+    img.onload = () => {
+      const ctx = bg.getContext('2d');
+      ctx.clearRect(0, 0, bg.width, bg.height);
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = snapshot;
+  }, []);
 
+  // ── eraser hit test ────────────────────────────────────────────────────────
+  const strokeHitsEraser = (stroke, eraserPoints, eraserSize) => {
+    const threshold = (eraserSize * 3) / 2 + stroke.size / 2;
+    for (const ep of eraserPoints) {
+      for (const sp of stroke.points) {
+        const dx = ep.x - sp.x;
+        const dy = ep.y - sp.y;
+        if (Math.sqrt(dx * dx + dy * dy) < threshold) return true;
+      }
+    }
+    return false;
+  };
+
+  // ── get canvas-space position ──────────────────────────────────────────────
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
-    const sx = canvas.width / rect.width;
+    const sx = canvas.width  / rect.width;
     const sy = canvas.height / rect.height;
     const src = e.touches ? e.touches[0] : e;
     return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
   };
 
+  // ── start drawing / erasing ────────────────────────────────────────────────
   const startDrawing = (e) => {
     e.preventDefault();
     const canvas = canvasRef.current;
     const pos = getPos(e, canvas);
     setIsDrawing(true);
     lastPos.current = pos;
-    const ctx = canvas.getContext('2d');
+    currentStroke.current = [pos];
+
     if (tool === 'fill') {
-      floodFill(ctx, Math.round(pos.x), Math.round(pos.y), color);
-      hasDrawingRef.current = true;  // ← fill also counts as drawing
-      saveToHistory();
+      const bgCtx  = bgCanvasRef.current.getContext('2d');
+      const bgCv   = bgCanvasRef.current;
+      const drawCv = canvasRef.current;
+      floodFill(bgCtx, bgCv, drawCv, Math.round(pos.x), Math.round(pos.y), color);
+      hasDrawingRef.current = true;
+      saveHistory(strokesRef.current);   // fill doesn't add strokes, pass current list
       onDrawingChange?.();
     }
   };
 
+  // ── continue drawing ───────────────────────────────────────────────────────
   const draw = (e) => {
     e.preventDefault();
     if (!isDrawing || tool === 'fill') return;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const pos = getPos(e, canvas);
-    ctx.lineJoin = 'round';
-    ctx.lineCap  = 'round';
+    const ctx    = canvas.getContext('2d');
+    const pos    = getPos(e, canvas);
+
+    currentStroke.current.push(pos);
+
     if (tool === 'eraser') {
-      // Paint white — matches the canvas background, no transparent checkerboard
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth   = brushSize * 3;
+      const remaining = strokes.filter(
+        s => !strokeHitsEraser(s, currentStroke.current, brushSize)
+      );
+      redrawStrokes(remaining);
     } else {
-      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.lineJoin    = 'round';
+      ctx.lineCap     = 'round';
       ctx.strokeStyle = color;
       ctx.lineWidth   = brushSize;
+      ctx.moveTo(lastPos.current.x, lastPos.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
+
     lastPos.current = pos;
-    hasDrawingRef.current = true;  // ← mark canvas as no longer blank
+    hasDrawingRef.current = true;
     onDrawingChange?.();
   };
 
+  // ── finish stroke ──────────────────────────────────────────────────────────
   const stopDrawing = () => {
-    if (isDrawing) { setIsDrawing(false); saveToHistory(); }
+    if (!isDrawing) return;
+    setIsDrawing(false);
+
+    if (tool === 'pen' && currentStroke.current.length > 1) {
+      const newStroke  = { points: currentStroke.current, color, size: brushSize };
+      const newStrokes = [...strokes, newStroke];
+      setStrokes(newStrokes);
+      redrawStrokes(newStrokes);
+      saveHistory(newStrokes);        // ← pass the new list including this stroke
+    } else if (tool === 'eraser') {
+      const remaining = strokes.filter(
+        s => !strokeHitsEraser(s, currentStroke.current, brushSize)
+      );
+      setStrokes(remaining);
+      redrawStrokes(remaining);
+      if (remaining.length === 0) hasDrawingRef.current = false;
+      saveHistory(remaining);         // ← pass remaining strokes after erase
+    }
+
+    currentStroke.current = [];
   };
 
+  // ── clear everything ───────────────────────────────────────────────────────
   const clearCanvas = () => {
+    setStrokes([]);
+    hasDrawingRef.current = false;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    hasDrawingRef.current = false;  // ← reset blank state
-    saveToHistory();
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    const bg = bgCanvasRef.current;
+    if (bg) {
+      const ctx = bg.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, bg.width, bg.height);
+      // reset history to just the blank state
+      const blankEntry = { bgSnapshot: bg.toDataURL(), strokeCount: 0 };
+      historyRef.current      = [blankEntry];
+      historyIndexRef.current = 0;
+    }
     onDrawingChange?.();
   };
 
+  // ── undo: step back one action (pen stroke OR fill OR erase) ─────────────
   const undo = () => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
-    setHistoryIndex(newIndex);
-    if (newIndex === 0) hasDrawingRef.current = false; // ← back to blank
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-    };
-    img.src = history[newIndex];
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    const prev = historyRef.current[historyIndexRef.current];
+
+    // 1. Restore bgCanvas (fill operations)
+    restoreBg(prev.bgSnapshot);
+
+    // 2. Restore strokes (pen/erase operations)
+    const newStrokes = strokesRef.current.slice(0, prev.strokeCount);
+    setStrokes(newStrokes);
+    redrawStrokes(newStrokes);
+
+    if (newStrokes.length === 0 && historyIndexRef.current === 0) {
+      hasDrawingRef.current = false;
+    }
     onDrawingChange?.();
   };
 
-  const floodFill = (ctx, x, y, fillColorHex) => {
-    const canvas = canvasRef.current;
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const ti = (y * canvas.width + x) * 4;
-    const tc = [data[ti], data[ti+1], data[ti+2], data[ti+3]];
+  const floodFill = (bgCtx, bgCanvas, drawCanvas, x, y, fillColorHex) => {
+    const w = bgCanvas.width;
+    const h = bgCanvas.height;
+
+    // ── Build a merged pixel view (bg + strokes) so fill respects drawn lines ──
+    const merged = document.createElement('canvas');
+    merged.width  = w;
+    merged.height = h;
+    const mCtx = merged.getContext('2d');
+    mCtx.fillStyle = '#FFFFFF';
+    mCtx.fillRect(0, 0, w, h);
+    mCtx.drawImage(bgCanvas,   0, 0);   // existing bg fills
+    mCtx.drawImage(drawCanvas, 0, 0);   // drawn strokes act as borders
+
+    const mergedData = mCtx.getImageData(0, 0, w, h).data;
+
+    // ── Read target colour from the merged view at the clicked pixel ──────────
+    const ti  = (y * w + x) * 4;
+    const tc  = [mergedData[ti], mergedData[ti+1], mergedData[ti+2], mergedData[ti+3]];
+
     const h2r = hex => {
-      // Handle 3-digit hex like #F00
-      const h = hex.length === 4
+      const hx = hex.length === 4
         ? '#' + hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]
         : hex;
-      return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16), 255];
+      return [parseInt(hx.slice(1,3),16), parseInt(hx.slice(3,5),16), parseInt(hx.slice(5,7),16), 255];
     };
     const fc = h2r(fillColorHex);
-    if (JSON.stringify(tc) === JSON.stringify(fc)) return;
-    const match = i => data[i]===tc[0] && data[i+1]===tc[1] && data[i+2]===tc[2] && Math.abs(data[i+3]-tc[3])<30;
-    const set   = i => { data[i]=fc[0]; data[i+1]=fc[1]; data[i+2]=fc[2]; data[i+3]=fc[3]; };
+
+    // Already filled with this colour — nothing to do
+    if (tc[0]===fc[0] && tc[1]===fc[1] && tc[2]===fc[2]) return;
+
+    // ── Flood fill on the merged view to find the region ─────────────────────
+    const tolerance = 30;
+    const match = i =>
+      Math.abs(mergedData[i]   - tc[0]) <= tolerance &&
+      Math.abs(mergedData[i+1] - tc[1]) <= tolerance &&
+      Math.abs(mergedData[i+2] - tc[2]) <= tolerance &&
+      mergedData[i+3] > 10; // skip fully transparent
+
+    // Collect all pixels that belong to the fill region
+    const fillPixels = new Set();
     const stack = [[x, y]];
-    const vis = new Set();
+    const vis   = new Set();
     while (stack.length) {
       const [cx, cy] = stack.pop();
-      if (cx<0 || cy<0 || cx>=canvas.width || cy>=canvas.height) continue;
+      if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
       const k = `${cx},${cy}`;
       if (vis.has(k)) continue;
       vis.add(k);
-      const idx = (cy * canvas.width + cx) * 4;
+      const idx = (cy * w + cx) * 4;
       if (!match(idx)) continue;
-      set(idx);
+      fillPixels.add(k);
       stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
     }
-    ctx.putImageData(imageData, 0, 0);
+
+    // ── Apply fill only to bgCanvas ───────────────────────────────────────────
+    const bgData = bgCtx.getImageData(0, 0, w, h);
+    const bd     = bgData.data;
+    fillPixels.forEach(k => {
+      const [px, py] = k.split(',').map(Number);
+      const i = (py * w + px) * 4;
+      bd[i]   = fc[0];
+      bd[i+1] = fc[1];
+      bd[i+2] = fc[2];
+      bd[i+3] = fc[3];
+    });
+    bgCtx.putImageData(bgData, 0, 0);
   };
 
   const handleSelectTrace = (shapeId) => {
@@ -461,7 +609,7 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
         <div className="toolbar-sep" />
         <div className="toolbar-section">
           <button className="tool-btn" onClick={undo}
-            disabled={historyIndex <= 0} title="Undo">↩️</button>
+            disabled={historyIndexRef.current <= 0} title="Undo">↩️</button>
         </div>
       </div>
 
@@ -513,8 +661,16 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
         )}
       </div>
 
-      {/* ── Canvas area with SVG overlay ── */}
+      {/* ── Canvas area: bg layer + drawing layer + SVG overlay ── */}
       <div className="canvas-area">
+        {/* Background layer — receives fill tool, never touched by eraser */}
+        <canvas
+          ref={bgCanvasRef}
+          width={900}
+          height={520}
+          className="bg-canvas"
+        />
+        {/* Drawing layer — receives pen strokes; eraser removes from here only */}
         <canvas
           ref={canvasRef}
           width={900}
@@ -528,6 +684,37 @@ const DrawingCanvas = forwardRef(({ onDrawingChange }, ref) => {
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
         />
+
+        {/* Reference image corner overlay */}
+        {refImage && (
+          <div className="ref-image-wrap">
+            <div className="ref-image-header">
+              <span className="ref-image-label">
+                {refImage.emoji} {refImage.label}
+              </span>
+              <button className="ref-image-close" onClick={onRefImageClose} title="Close">✕</button>
+            </div>
+            {refImage.url ? (
+              <img
+                src={refImage.url}
+                alt={refImage.label}
+                className="ref-image"
+                onError={(e) => {
+                  // If image fails to load, show emoji fallback
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div
+              className="ref-image-emoji-fallback"
+              style={{ display: refImage.url ? 'none' : 'flex' }}
+            >
+              {refImage.emoji}
+            </div>
+            <div className="ref-image-hint">Reference — try drawing this!</div>
+          </div>
+        )}
 
         {activeShapeData && (
           <svg

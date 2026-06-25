@@ -33,7 +33,8 @@ export default function WhiteboardPage() {
   const [childAge,     setChildAge]     = useState(7);
   const [hasDrawing,   setHasDrawing]   = useState(false);
   const [mobileView,   setMobileView]   = useState('canvas');
-  const [language,     setLanguage]     = useState('en-US');  // ← NEW: tracks selected language
+  const [language,     setLanguage]     = useState('en-US');
+  const [refImage,     setRefImage]     = useState(null); // { url, label } shown in canvas corner
 
   const startSession = async () => {
     try {
@@ -132,7 +133,7 @@ export default function WhiteboardPage() {
     }
   };
 
-  // Detect "draw a X" / "draw X" / "how to draw X" requests
+  // Detect drawing guidance requests in any phrasing
   const extractDrawSubject = (text) => {
     const t = text.trim().toLowerCase();
     const patterns = [
@@ -140,12 +141,115 @@ export default function WhiteboardPage() {
       /^(?:how (?:do i|to) draw(?: a| an)?) (.+?)[\?\!\.]*$/,
       /^(?:show me how to draw(?: a| an)?) (.+?)[\?\!\.]*$/,
       /^(?:teach me (?:to|how to) draw(?: a| an)?) (.+?)[\?\!\.]*$/,
+      // NEW: "guide me to draw X", "guide me on drawing X"
+      /^(?:guide me (?:to draw|on drawing|to|on)(?: a| an)?) (.+?)[\?\!\.]*$/,
+      // NEW: "help me draw X"
+      /^(?:help me (?:draw|to draw)(?: a| an)?) (.+?)[\?\!\.]*$/,
+      // NEW: "I want to draw X"
+      /^(?:i (?:want|would like) to draw(?: a| an)?) (.+?)[\?\!\.]*$/,
+      // NEW: "steps to draw X"
+      /^(?:steps (?:to|for) draw(?:ing)?(?: a| an)?) (.+?)[\?\!\.]*$/,
     ];
     for (const re of patterns) {
       const m = t.match(re);
-      if (m) return m[1].trim();
+      if (m) return (m[1] || m[2] || '').trim();
     }
     return null;
+  };
+
+  // ── Reference image lookup ────────────────────────────────────────────────
+  // Uses Wikimedia direct image URLs (no API call, no CORS) + emoji fallback
+  const REF_IMAGES = {
+    // Animals
+    cat:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Kittyply_edit1.jpg/220px-Kittyply_edit1.jpg', emoji: '🐱' },
+    dog:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/YellowLabradorLooking_new.jpg/220px-YellowLabradorLooking_new.jpg', emoji: '🐶' },
+    lion:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Lion_waiting_in_Namibia.jpg/220px-Lion_waiting_in_Namibia.jpg', emoji: '🦁' },
+    rabbit:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Oryctolagus_cuniculus_Rcdo.jpg/220px-Oryctolagus_cuniculus_Rcdo.jpg', emoji: '🐰' },
+    elephant:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/African_Bush_Elephant.jpg/220px-African_Bush_Elephant.jpg', emoji: '🐘' },
+    penguin:     { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/South_Shetland-2016-Deception_Island%E2%80%93Chinstrap_penguin_%28Pygoscelis_antarctica%29_04.jpg/220px-South_Shetland-2016-Deception_Island%E2%80%93Chinstrap_penguin_%28Pygoscelis_antarctica%29_04.jpg', emoji: '🐧' },
+    fish:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/220px-Camponotus_flavomarginatus_ant.jpg', emoji: '🐟' },
+    bird:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/220px-Camponotus_flavomarginatus_ant.jpg', emoji: '🐦' },
+    butterfly:   { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Monarch_Butterfly_Danaus_plexippus_Feeding_Down.jpg/220px-Monarch_Butterfly_Danaus_plexippus_Feeding_Down.jpg', emoji: '🦋' },
+    owl:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Big_owl.jpg/220px-Big_owl.jpg', emoji: '🦉' },
+    whale:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Humpback_Whale_underwater_shot.jpg/220px-Humpback_Whale_underwater_shot.jpg', emoji: '🐋' },
+    turtle:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Florida_Box_Turtle_Digon3_re-edited.jpg/220px-Florida_Box_Turtle_Digon3_re-edited.jpg', emoji: '🐢' },
+    dinosaur:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Diplodocus_Carnegie2.jpg/220px-Diplodocus_Carnegie2.jpg', emoji: '🦕' },
+    fox:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Red_Fox_%28Vulpes_vulpes%29_-_British_Wildlife_Centre-3.jpg/220px-Red_Fox_%28Vulpes_vulpes%29_-_British_Wildlife_Centre-3.jpg', emoji: '🦊' },
+    bear:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/ThreeGrizzlyBears.jpg/220px-ThreeGrizzlyBears.jpg', emoji: '🐻' },
+    frog:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Anotheca_spinosa.jpg/220px-Anotheca_spinosa.jpg', emoji: '🐸' },
+    // Nature
+    tree:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/24701-nature-natural-beauty.jpg/220px-24701-nature-natural-beauty.jpg', emoji: '🌳' },
+    flower:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Sunflower_from_Silesia2.jpg/220px-Sunflower_from_Silesia2.jpg', emoji: '🌸' },
+    sun:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg/220px-The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg', emoji: '☀️' },
+    moon:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/220px-FullMoon2010.jpg', emoji: '🌙' },
+    rainbow:     { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Double-alaskan-rainbow.jpg/220px-Double-alaskan-rainbow.jpg', emoji: '🌈' },
+    cloud:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Gotham.jpg/220px-Above_Gotham.jpg', emoji: '☁️' },
+    mountain:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Everest_North_Face_toward_Base_Camp_Tibet_Luca_Galuzzi_2006.jpg/220px-Everest_North_Face_toward_Base_Camp_Tibet_Luca_Galuzzi_2006.jpg', emoji: '⛰️' },
+    cactus:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Cactus_-_Desert_Botanical_Garden.jpg/220px-Cactus_-_Desert_Botanical_Garden.jpg', emoji: '🌵' },
+    mushroom:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Amanita_muscaria_3_vliegenzwammen_op_rij.jpg/220px-Amanita_muscaria_3_vliegenzwammen_op_rij.jpg', emoji: '🍄' },
+    leaf:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Quercus_robur_leaf_in_Eastwoodhill_Arboretum.jpg/220px-Quercus_robur_leaf_in_Eastwoodhill_Arboretum.jpg', emoji: '🍃' },
+    // Food
+    apple:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Red_Apple.jpg/220px-Red_Apple.jpg', emoji: '🍎' },
+    banana:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Banana-Fruit-Pieces.jpg/220px-Banana-Fruit-Pieces.jpg', emoji: '🍌' },
+    pizza:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Eq_it-na_pizza-margherita_sep2005_sml.jpg/220px-Eq_it-na_pizza-margherita_sep2005_sml.jpg', emoji: '🍕' },
+    cake:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Baumkuchen_%28Juchheim%29.jpg/220px-Baumkuchen_%28Juchheim%29.jpg', emoji: '🎂' },
+    watermelon:  { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_Watermelon_1.jpg/220px-PNG_Watermelon_1.jpg', emoji: '🍉' },
+    donut:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Glazed-Donut.jpg/220px-Glazed-Donut.jpg', emoji: '🍩' },
+    burger:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Grilled_Cheese_Bacon_Burger.jpg/220px-Grilled_Cheese_Bacon_Burger.jpg', emoji: '🍔' },
+    'ice cream': { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Ice_Cream_dessert_02.jpg/220px-Ice_Cream_dessert_02.jpg', emoji: '🍦' },
+    icecream:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Ice_Cream_dessert_02.jpg/220px-Ice_Cream_dessert_02.jpg', emoji: '🍦' },
+    // Vehicles
+    car:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/2019_Honda_Civic_%28FC%2C_facelift%2C_sedan%29_1.6_VTi_front_8.14.19.jpg/220px-2019_Honda_Civic_%28FC%2C_facelift%2C_sedan%29_1.6_VTi_front_8.14.19.jpg', emoji: '🚗' },
+    bus:         { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Mk1metro.JPG/220px-Mk1metro.JPG', emoji: '🚌' },
+    train:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Thomas_the_tank_engine_%26_friends_%2815600675248%29.jpg/220px-Thomas_the_tank_engine_%26_friends_%2815600675248%29.jpg', emoji: '🚂' },
+    airplane:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/220px-PNG_transparency_demonstration_1.png', emoji: '✈️' },
+    bicycle:     { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Bicycle_with_Rider.jpg/220px-Bicycle_with_Rider.jpg', emoji: '🚲' },
+    boat:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Wooden_boat.jpg/220px-Wooden_boat.jpg', emoji: '⛵' },
+    // Objects
+    house:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Collage_of_Nine_Dogs.jpg/220px-Collage_of_Nine_Dogs.jpg', emoji: '🏠' },
+    star:        { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/White_shark.jpg/220px-White_shark.jpg', emoji: '⭐' },
+    heart:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Heart_coraz%C3%B3n.svg/220px-Heart_coraz%C3%B3n.svg.png', emoji: '❤️' },
+    balloon:     { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Red_balloon_02.jpg/220px-Red_balloon_02.jpg', emoji: '🎈' },
+    crown:       { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Golden_crown.jpg/220px-Golden_crown.jpg', emoji: '👑' },
+    guitar:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/GuitareClassique5.png/220px-GuitareClassique5.png', emoji: '🎸' },
+    umbrella:    { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Umbrella_-_black_-_open.jpg/220px-Umbrella_-_black_-_open.jpg', emoji: '☂️' },
+    rocket:      { url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/Rocket_man_alternative.jpg/220px-Rocket_man_alternative.jpg', emoji: '🚀' },
+  };
+
+  const fetchRefImage = async (subject) => {
+    const key = subject.toLowerCase().trim();
+
+    // 1. Check pre-mapped images first (instant, no API call)
+    if (REF_IMAGES[key]) {
+      setRefImage({ ...REF_IMAGES[key], label: subject });
+      return;
+    }
+
+    // 2. Try partial match (e.g. "red apple" → "apple")
+    const partialKey = Object.keys(REF_IMAGES).find(k => key.includes(k) || k.includes(key));
+    if (partialKey) {
+      setRefImage({ ...REF_IMAGES[partialKey], label: subject });
+      return;
+    }
+
+    // 3. Fallback: Wikipedia REST API (works for many subjects)
+    try {
+      const res  = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(subject)}`,
+        { headers: { Accept: 'application/json' } }
+      );
+      const data = await res.json();
+      if (data.thumbnail?.source) {
+        setRefImage({ url: data.thumbnail.source, emoji: '📷', label: subject });
+        return;
+      }
+    } catch {}
+
+    // 4. Last fallback: just show emoji card with no image
+    const emojiMap = { cat:'🐱',dog:'🐶',tree:'🌳',house:'🏠',sun:'☀️',moon:'🌙',
+      flower:'🌸',fish:'🐟',bird:'🐦',apple:'🍎',banana:'🍌',car:'🚗',boat:'⛵' };
+    const emoji = emojiMap[key] || '🎨';
+    setRefImage({ url: null, emoji, label: subject });
   };
 
   const handleChatMessage = async (text) => {
@@ -163,7 +267,7 @@ export default function WhiteboardPage() {
           object_name: drawSubject,
           child_age: session.age || childAge,
           session_id: session.id,
-          language,                            // ← pass language
+          language,
         });
         if (res.success && res.guidance) {
           const g = res.guidance;
@@ -176,6 +280,10 @@ export default function WhiteboardPage() {
             created_at: new Date().toISOString(),
           }]);
           setActiveTab('chat');
+          // Fetch and show reference image in canvas corner
+          fetchRefImage(drawSubject);
+          // Switch mobile view to canvas so child can see the reference image
+          if (window.innerWidth <= 900) setMobileView('canvas');
           setChatLoading(false);
           return;
         }
@@ -213,6 +321,7 @@ export default function WhiteboardPage() {
     setPrediction(null);
     setUserText('');
     setMobileView('canvas');
+    setRefImage(null);
   };
 
   const handleNewSession = () => {
@@ -220,6 +329,7 @@ export default function WhiteboardPage() {
     setUserText(''); setStats({ drawings: 0, predictions: 0, chat_messages: 0 });
     setChildName(''); setChildAge(7); setShowWelcome(true); setMobileView('canvas');
     setHasDrawing(false);
+    setRefImage(null);
     canvasRef.current?.clearCanvas();
   };
 
@@ -292,8 +402,12 @@ export default function WhiteboardPage() {
         {/* Canvas section */}
         <div className={`canvas-section${mobileView === 'panel' ? ' mob-hide' : ''}`}>
           <div className="canvas-card">
-            <DrawingCanvas ref={canvasRef}
-              onDrawingChange={() => setHasDrawing(true)} />
+            <DrawingCanvas
+              ref={canvasRef}
+              onDrawingChange={() => setHasDrawing(true)}
+              refImage={refImage}
+              onRefImageClose={() => setRefImage(null)}
+            />
           </div>
           <div className="canvas-controls">
             <input type="text" className="hint-input"
